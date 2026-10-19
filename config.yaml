@@ -10,6 +10,7 @@ output:
   buildings_geojson: buildings.geojson
   summary_csv: buildings_summary.csv
   map_html: map.html
+  publish_copy: docs/index.html   # salinan peta untuk GitHub Pages (kosongkan untuk menonaktifkan)
 
 map:
   overlay_max_px: 2000   # sisi terpanjang overlay PNG (downsample)

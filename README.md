@@ -4,6 +4,22 @@ Perkiraan awal luas atap yang berpotensi dipasangi panel surya, dihitung dari **
 
 > **Status: v0.1.** Project ini baru mengukur *luas bangunan*. Belum ada perhitungan daya atau energi (lihat [Roadmap](#roadmap)).
 
+## Lihat hasilnya
+
+### [Buka peta interaktif](https://irwanrudy.github.io/solar-rooftop-drone/)
+
+Tidak perlu instal apa pun, bisa dibuka di HP maupun laptop.
+
+[![Pratinjau peta](docs/preview.png)](https://irwanrudy.github.io/solar-rooftop-drone/)
+
+**Cara membaca peta:**
+- Foto berwarna adalah foto udara dari drone. Di sekelilingnya adalah peta jalan biasa.
+- **Kotak merah** adalah denah bangunan. Arahkan kursor (atau ketuk di HP) ke sebuah bangunan untuk melihat luas denahnya dalam meter persegi.
+- **Garis biru** adalah batas area yang dipelajari.
+- Tombol di pojok kanan atas bisa menyalakan atau mematikan setiap lapisan.
+
+Peta ini menunjukkan *seberapa luas* bangunan di area tersebut, bukan *berapa banyak listrik* yang bisa dihasilkan. Baca [disclaimer](#disclaimer-baca-ini-dulu) di bawah sebelum menarik kesimpulan.
+
 ---
 
 ## Disclaimer: baca ini dulu
@@ -87,6 +103,7 @@ Hasil ada di folder `output/`:
 | `buildings.geojson` | Denah bangunan hasil clip, lengkap dengan `area_m2` |
 | `buildings_summary.csv` | Jumlah bangunan, total luas, min/median/max |
 | `map.html` | Peta interaktif, bisa dibuka langsung di browser |
+| `docs/index.html` | Salinan `map.html` yang dipublikasikan lewat GitHub Pages (diatur oleh `output.publish_copy`) |
 
 ### Pengaturan (`config.yaml`)
 

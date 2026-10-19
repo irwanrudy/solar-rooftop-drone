@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import base64
 import math
+import shutil
 import sys
 from pathlib import Path
 
@@ -254,6 +255,21 @@ def ortho_overlay_png(path: Path, max_px: int) -> bytes:
         return mem_png.read()
 
 
+MAP_TITLE = "Potensi Atap Surya - Screening Awal"
+MAP_NOTE_HTML = """
+<div style="position:fixed;bottom:22px;left:10px;z-index:9999;max-width:340px;
+            background:rgba(255,255,255,.92);padding:8px 10px;border-radius:6px;
+            font:12px/1.4 system-ui,sans-serif;color:#222;box-shadow:0 1px 5px rgba(0,0,0,.4)">
+  <b>Cara membaca:</b> kotak merah = denah bangunan, garis biru = batas area studi.
+  Arahkan kursor ke bangunan untuk melihat luas denahnya.<br>
+  <b>Screening awal</b>, bukan desain teknis: luas denah belum berarti luas atap yang bisa dipasangi panel.<br>
+  <span style="color:#555">Ortofoto: OpenAerialMap, Dany Puguh Laksono (UGM), 2019,
+  <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank">CC BY 4.0</a>.
+  Denah: Overture Maps (ODbL). Peta dasar: &copy; OpenStreetMap.</span>
+</div>
+"""
+
+
 def build_map(
     gdf: gpd.GeoDataFrame, ortho_path: Path, info: dict, cfg: dict,
     aoi: gpd.GeoDataFrame | None = None,
@@ -285,8 +301,17 @@ def build_map(
     folium.LayerControl().add_to(m)
     m.fit_bounds([[view[1], view[0]], [view[3], view[2]]])
 
+    m.get_root().header.add_child(folium.Element(f"<title>{MAP_TITLE}</title>"))
+    m.get_root().html.add_child(folium.Element(MAP_NOTE_HTML))
+
     out = ROOT / cfg["output"]["dir"] / cfg["output"]["map_html"]
     m.save(out)
+    publish = cfg["output"].get("publish_copy")
+    if publish:  # salinan untuk GitHub Pages
+        publish_path = ROOT / publish
+        publish_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(out, publish_path)
+        print(f"           salinan publikasi: {publish_path}")
     return out
 
 
