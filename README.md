@@ -70,10 +70,10 @@ pip install -r requirements.txt
 
 ## Cara menjalankan
 
-1. Siapkan data (folder `data/` tidak ikut di repo):
+1. Data contoh sudah ada di folder `data/` (ortofoto dan AOI area uji), jadi bisa langsung dijalankan. Untuk area lain, siapkan:
    - `data/orto/<nama>.tif`: ortofoto RGB berformat GeoTIFF.
    - `data/aoi/<nama>.shp`: poligon batas area studi (opsional).
-2. Sesuaikan nama file di `config.yaml`.
+2. Sesuaikan nama file di `config.yaml` (bagian `input`).
 3. Jalankan:
 
 ```powershell
@@ -109,7 +109,7 @@ solar-rooftop-drone/
 ├── config.yaml         # semua path dan parameter
 ├── requirements.txt
 ├── requirements-dev.txt  # tambahan untuk notebook (jupyterlab, matplotlib)
-├── data/               # input (tidak di-commit)
+├── data/               # data contoh: orto/ (ortofoto) dan aoi/ (batas area studi)
 ├── output/             # hasil (tidak di-commit)
 └── notebooks/
     └── 01_explore_footprints.ipynb   # ringkasan dan grafik hasil v0.1
@@ -148,7 +148,7 @@ Untuk membuka notebook: `pip install -r requirements-dev.txt`, jalankan `python 
 | Resolusi | sekitar 7,5 cm per piksel, EPSG:3857, 3 band RGB |
 | Lisensi | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) |
 
-Ortofoto ini dipakai sesuai lisensi CC BY 4.0 dengan mencantumkan atribusi di atas. File aslinya tidak disertakan di repo (ukurannya besar dan sudah tersedia di OpenAerialMap). Silakan unduh sendiri dari tautan tersebut, atau pakai ortofoto lain berformat GeoTIFF RGB.
+Ortofoto ini dipakai sesuai lisensi CC BY 4.0 dengan mencantumkan atribusi di atas. Salinan file aslinya disertakan di `data/orto/` (sekitar 17 MB, tanpa modifikasi) agar project bisa langsung dijalankan. Sumber resminya tetap tautan di atas. Untuk area lain, pakai ortofoto lain berformat GeoTIFF RGB.
 
 > **Catatan waktu:** ortofoto direkam tahun 2019, sedangkan denah Overture berasal dari rilis yang jauh lebih baru. Bangunan yang dibangun, dibongkar, atau diubah di antara kedua tanggal itu bisa tidak cocok dengan citra.
 
@@ -159,4 +159,4 @@ Ortofoto ini dipakai sesuai lisensi CC BY 4.0 dengan mencantumkan atribusi di at
 ### Lainnya
 
 - Peta dasar pada `map.html`: © kontributor [OpenStreetMap](https://www.openstreetmap.org/copyright).
-- AOI (batas area studi) dibuat sendiri oleh pembuat project dan tidak disertakan dalam repo.
+- AOI (batas area studi, `data/aoi/`) dibuat sendiri oleh pembuat project.

@@ -1,9 +1,7 @@
-﻿data/
-output/
+﻿output/
 .venv/
 __pycache__/
 *.pyc
-*.tif
-*.tiff
 .ipynb_checkpoints/
 .vscode/
+data/aoi/backup_*/
