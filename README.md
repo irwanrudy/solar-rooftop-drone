@@ -42,7 +42,7 @@ Dua sumber ketidakpastian lain yang perlu diketahui:
 **Tentang angka kapasitas dan energi (v0.2):**
 
 - Angka itu **perkiraan berbasis asumsi dari literatur**, bukan hasil pengukuran atau simulasi sistem. Seluruh asumsi dan sumbernya ada di [Referensi](#referensi) dan bisa diubah di `config.yaml`.
-- **Rentangnya lebar.** Pada area uji, skenario rendah dan tinggi berselisih sekitar 8 kali lipat (1,6 sampai 12,6 GWh per tahun). Penyebab terbesarnya adalah *faktor pemanfaatan atap*: fraksi denah yang benar-benar bisa dipasangi modul. Nilainya di literatur Indonesia berkisar 0,125 (atap miring perumahan di Semarang [2]) sampai 0,64 (rumah besar di Jakarta [1]).
+- **Rentangnya lebar.** Pada area uji, skenario rendah dan tinggi berselisih sekitar 10 kali lipat (1,2 sampai 12,6 GWh per tahun). Penyebab terbesarnya adalah *faktor pemanfaatan atap*: fraksi denah yang benar-benar bisa dipasangi modul. Nilainya di literatur Indonesia berkisar 0,125 (atap miring perumahan di Semarang [2]) sampai 0,64 (rumah besar di Jakarta [1]).
 - **Asumsi berasal dari studi perumahan di kota lain** (Jakarta [1], Semarang [2]), dengan tipologi bangunan dan atap yang berbeda dari bangunan di area uji. Belum divalidasi untuk bangunan di area ini.
 - **Iradiasi dipakai pada bidang horizontal**, tanpa koreksi kemiringan dan arah modul. Studi acuan menyebut arah dan kemiringan masing-masing bisa menggeser hasil sekitar 10% dan 12% [1].
 - Tidak termasuk: penurunan kinerja panel dari tahun ke tahun, biaya, tarif listrik, dan kelayakan ekonomi.
@@ -90,19 +90,19 @@ Luas denah bukan luas atap yang bisa dipasangi panel (lihat disclaimer). Estimas
 
 | Skenario | UF | Efisiensi | PR | Kapasitas | Energi per tahun | Yield |
 |---|---|---|---|---|---|---|
-| Rendah | 0,125 | 17,3% | 0,70 | 1,2 MWp | 1,6 GWh | 1.343 kWh/kWp |
-| **Dasar** | **0,49** | **20,0%** | **0,75** | **5,5 MWp** | **7,9 GWh** | **1.438 kWh/kWp** |
+| Rendah | 0,125 | 15,0% | 0,60 | 1,1 MWp | 1,2 GWh | 1.151 kWh/kWp |
+| **Dasar** | **0,49** | **17,3%** | **0,75** | **4,8 MWp** | **6,9 GWh** | **1.439 kWh/kWp** |
 | Tinggi | 0,64 | 22,8% | 0,80 | 8,2 MWp | 12,6 GWh | 1.534 kWh/kWp |
 
-Sebagai pembanding, yield skenario dasar (1.438 kWh/kWp) dekat dengan hasil PVGIS di lokasi yang sama (1.449 kWh/kWp untuk modul horizontal dengan rugi sistem 14%) dan dengan angka rata-rata nasional IESR (1.534 kWh/kWp [3]). Notebook `notebooks/01_explore_footprints.ipynb` memuat analisis sensitivitas yang menunjukkan parameter mana yang paling menentukan hasil.
+Sebagai pembanding, yield skenario dasar (1.439 kWh/kWp) dekat dengan hasil PVGIS di lokasi yang sama (1.449 kWh/kWp untuk modul horizontal dengan rugi sistem 14%), dan yield skenario tinggi sama dengan angka rata-rata nasional IESR (1.534 kWh/kWp [3]). Yield skenario rendah (1.151) mendekati batas bawah studi Jakarta (1.161 sampai 1.258 kWh/kWp [1]). Notebook `notebooks/01_explore_footprints.ipynb` memuat analisis sensitivitas yang menunjukkan parameter mana yang paling menentukan hasil.
 
 ### Asumsi dan sumbernya
 
 | Parameter | Rendah | Dasar | Tinggi | Sumber |
 |---|---|---|---|---|
 | Faktor pemanfaatan atap (UF) | 0,125 | 0,49 | 0,64 | Rendah: koefisien atap perumahan dataran rendah Semarang [2]. Dasar dan tinggi: rumah sedang/apartemen dan rumah besar di Jakarta [1]. |
-| Efisiensi modul | 17,3% | 20,0% | 22,8% | Dua skenario efisiensi pada studi Jakarta [1]. Nilai dasar adalah titik tengah (interpolasi, bukan angka dari paper). |
-| Performance ratio (PR) | 0,70 | 0,75 | 0,80 | Faktor derate 0,75 dengan rentang 0,6 sampai 0,8 [2]. Batas bawah 0,70 diturunkan dari yield Jakarta 1.161 sampai 1.258 kWh/kWp [1] terhadap GHI Jakarta sekitar 1.670 kWh/m² per tahun (perhitungan penulis, kasar). |
+| Efisiensi modul | 15,0% | 17,3% | 22,8% | Rendah: asumsi efisiensi 15% yang dipakai MEMR untuk potensi PV nasional, sebagaimana dikutip IESR [3]. Dasar dan tinggi: dua skenario efisiensi pada studi Jakarta [1]. |
+| Performance ratio (PR) | 0,60 | 0,75 | 0,80 | Faktor derate "tipikal" 0,75 dengan rentang 0,6 sampai 0,8 pada studi Semarang [2]. |
 | GHI tahunan | 1.918 kWh/m² per tahun | | | PVGIS-ERA5 2005 sampai 2023 di titik area studi [4]. NASA POWER memberi 1.883, selisih sekitar 2% [5]. |
 
 Faktor pemanfaatan pada [1] ada per tipe bangunan: 0,36 (rumah kecil), 0,49 (sedang), 0,64 (besar), 0,49 (apartemen), 0,86 (industri), dan 0,60 (komersial). Tipe bangunan dari Overture di area uji sebagian besar kosong (89 dari 117 bangunan), sehingga project ini memakai satu nilai per skenario, bukan nilai per tipe.
@@ -203,13 +203,13 @@ Angka dan rumus pada estimasi energi (v0.2) berasal dari sumber berikut. Sumber 
 2. Widodo, D. A., Purwanto, P., & Hermawan, H. (2020). Potential of Solar Energy in Residential Rooftop Surface Area in Semarang City, Indonesia. *Advances in Science, Technology and Engineering Systems Journal*, 5(4), 397-404. [doi:10.25046/aj050446](https://doi.org/10.25046/aj050446)
    Dipakai untuk: koefisien atap 0,125 (dataran rendah) dan 0,145 (perbukitan), serta faktor derate 0,75 (rentang 0,6 sampai 0,8).
 3. Tampubolon, A., Damayanti, H., Tumiwa, F., & Citraningrum, M. (2019). *Powering the Cities: Technical Potential of Rooftop Solar for Public and Commercial Buildings in Two Metropolitan Cities in Indonesia*. Technical Note, Institute for Essential Services Reform (IESR), Juli 2019. [PDF](https://iesr.or.id/wp-content/uploads/2019/07/IESR-Technical-Note-Powering-The-Cities-Technical-Potential-JKT-SBY.pdf)
-   Dipakai untuk: pembanding yield nasional (1.534 kWh/kWp per tahun) dan konteks iradiasi Indonesia (rata-rata GHI 4,8 kWh/m² per hari).
+   Dipakai untuk: efisiensi modul skenario rendah (15%, asumsi MEMR yang dikutip), pembanding yield nasional (1.534 kWh/kWp per tahun), dan konteks iradiasi Indonesia (rata-rata GHI 4,8 kWh/m² per hari).
 4. European Commission, Joint Research Centre. *PVGIS 5.3*, basis data radiasi PVGIS-ERA5 (2005 sampai 2023). Diakses 20 Oktober 2026 untuk koordinat -7,7653, 110,3728. [re.jrc.ec.europa.eu/pvg_tools](https://re.jrc.ec.europa.eu/pvg_tools/en/)
    Dipakai untuk: GHI tahunan 1.918 kWh/m² dan pembanding yield.
 5. NASA Langley Research Center. *Prediction of Worldwide Energy Resources (POWER)*, klimatologi v2.10.1, parameter `ALLSKY_SFC_SW_DWN` (5,159 kWh/m² per hari). Diakses 20 Oktober 2026. [power.larc.nasa.gov](https://power.larc.nasa.gov/)
    Dipakai untuk: pembanding GHI.
 
-**Catatan kejujuran sumber:** nilai faktor pemanfaatan dari studi internasional (Schallenberg-Rodríguez 2013; Vardimon 2011; Horan dkk. 2020) hanya dikutip melalui [1] dan tidak dibaca langsung, sehingga tidak dijadikan parameter. Studi Indonesia lain yang sempat ditemukan (Makassar, Sihotang & Okajima 2017; Bali, tesis TU Delft 2022) tidak bisa dibuka teks lengkapnya saat penulisan, sehingga angkanya tidak dipakai. Triana dkk. [1] menulis koefisien Semarang sebagai 0,125 dan 0,15; paper aslinya [2] memuat 0,145 untuk perbukitan, dan README ini mengikuti paper aslinya.
+**Catatan kejujuran sumber:** setiap nilai parameter pada tabel asumsi diambil langsung dari satu sumber, tanpa interpolasi atau turunan sendiri. Nilai faktor pemanfaatan dari studi internasional (Schallenberg-Rodríguez 2013; Vardimon 2011; Horan dkk. 2020) hanya dikutip melalui [1] dan tidak dibaca langsung, sehingga tidak dijadikan parameter. Studi Indonesia lain yang sempat ditemukan (Makassar, Sihotang & Okajima 2017; Bali, tesis TU Delft 2022) tidak bisa dibuka teks lengkapnya saat penulisan, sehingga angkanya tidak dipakai. Triana dkk. [1] menulis koefisien Semarang sebagai 0,125 dan 0,15; paper aslinya [2] memuat 0,145 untuk perbukitan, dan README ini mengikuti paper aslinya.
 
 ## Sumber data dan atribusi
 

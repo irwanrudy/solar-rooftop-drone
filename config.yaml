@@ -27,16 +27,16 @@ solar:
   scenarios:
     low:    # konservatif: atap miring/terbatas, modul lebih lama, rugi besar
       utilization_factor: 0.125   # Widodo dkk. 2020 (Semarang, dataran rendah)
-      module_efficiency: 0.173    # Triana dkk. 2024, skenario efisiensi 1
-      performance_ratio: 0.70     # batas bawah turunan dari Triana dkk. 2024
+      module_efficiency: 0.15     # asumsi MEMR, dikutip Tampubolon dkk. 2019 (IESR)
+      performance_ratio: 0.60     # Widodo dkk. 2020, batas bawah rentang derate
     base:   # nilai tengah
       utilization_factor: 0.49    # Triana dkk. 2024 (rumah sedang / apartemen)
-      module_efficiency: 0.20     # interpolasi antara 17.3% dan 22.8% (Triana dkk. 2024)
-      performance_ratio: 0.75     # Widodo dkk. 2020 (derate 0.75); sejalan dgn PVGIS
+      module_efficiency: 0.173    # Triana dkk. 2024, skenario efisiensi 1
+      performance_ratio: 0.75     # Widodo dkk. 2020 (derate "tipikal" 0.75)
     high:   # optimistis: atap datar/lapang, modul modern, rugi kecil
       utilization_factor: 0.64    # Triana dkk. 2024 (rumah besar); komersial 0.60
       module_efficiency: 0.228    # Triana dkk. 2024, skenario efisiensi 2
-      performance_ratio: 0.80     # batas atas rentang derate Widodo dkk. 2020
+      performance_ratio: 0.80     # Widodo dkk. 2020, batas atas rentang derate
 
 overture:
   release: latest        # atau versi tetap, mis. 2026-09-23.1
