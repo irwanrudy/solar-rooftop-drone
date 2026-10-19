@@ -1,0 +1,8 @@
+﻿data/
+output/
+.venv/
+__pycache__/
+*.pyc
+*.tif
+*.tiff
+.ipynb_checkpoints/

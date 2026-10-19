@@ -1,0 +1,8 @@
+﻿rasterio
+numpy
+geopandas
+shapely
+pyproj
+folium
+overturemaps
+pyyaml

@@ -1,0 +1,15 @@
+﻿# Path relatif terhadap root project (solar-rooftop-drone/)
+input:
+  ortho: data/5e3291094469a3000531a76a.tif
+
+output:
+  dir: output
+  buildings_geojson: buildings.geojson
+  summary_csv: buildings_summary.csv
+  map_html: map.html
+
+map:
+  overlay_max_px: 2000   # sisi terpanjang overlay PNG (downsample)
+
+overture:
+  min_buildings_warn: 5  # di bawah ini tampilkan peringatan cakupan
