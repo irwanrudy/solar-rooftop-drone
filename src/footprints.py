@@ -13,17 +13,23 @@ Semua path/parameter dibaca dari config.yaml.
 
 from __future__ import annotations
 
+import base64
 import math
 import sys
 from pathlib import Path
 
 import duckdb
+import folium
 import geopandas as gpd
+import numpy as np
 import pandas as pd
 import rasterio
+import rasterio.shutil
 import shapely
 import yaml
 from pyproj import CRS, Transformer
+from rasterio.enums import Resampling
+from rasterio.io import MemoryFile
 from shapely.geometry import box
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -172,6 +178,49 @@ def save_outputs(gdf: gpd.GeoDataFrame, summary: pd.DataFrame, cfg: dict) -> tup
     return geojson_path, csv_path
 
 
+def ortho_overlay_png(path: Path, max_px: int) -> bytes:
+    """Downsample ortofoto ke PNG RGBA (piksel hitam murni -> transparan)."""
+    with rasterio.open(path) as src:
+        scale = max_px / max(src.width, src.height)
+        shape = (max(1, round(src.height * scale)), max(1, round(src.width * scale)))
+        rgb = src.read([1, 2, 3], out_shape=shape, resampling=Resampling.average)
+
+    alpha = np.where(rgb.sum(axis=0) == 0, 0, 255).astype("uint8")
+    rgba = np.concatenate([rgb, alpha[None]]).astype("uint8")
+    profile = {"driver": "MEM", "count": 4, "dtype": "uint8",
+               "height": shape[0], "width": shape[1]}
+    with MemoryFile() as mem_src, MemoryFile() as mem_png:
+        with mem_src.open(**{**profile, "driver": "GTiff"}) as tmp:
+            tmp.write(rgba)
+            rasterio.shutil.copy(tmp, mem_png.name, driver="PNG")
+        return mem_png.read()
+
+
+def build_map(gdf: gpd.GeoDataFrame, ortho_path: Path, info: dict, cfg: dict) -> Path:
+    """Peta Folium: footprint di atas ortofoto (overlay PNG ringan, tertanam)."""
+    west, south, east, north = info["bounds_wgs84"]
+    png = ortho_overlay_png(ortho_path, cfg["map"]["overlay_max_px"])
+    data_uri = "data:image/png;base64," + base64.b64encode(png).decode()
+
+    m = folium.Map(location=[(south + north) / 2, (west + east) / 2],
+                   zoom_start=17, max_zoom=21, tiles="OpenStreetMap")
+    folium.raster_layers.ImageOverlay(
+        image=data_uri, bounds=[[south, west], [north, east]], name="Ortofoto", opacity=1.0
+    ).add_to(m)
+    folium.GeoJson(
+        gdf.to_crs("EPSG:4326")[["id", "area_m2", "is_edge", "geometry"]],
+        name="Footprint Overture",
+        style_function=lambda _: {"color": "#ff3300", "weight": 1.5, "fillOpacity": 0.15},
+        tooltip=folium.GeoJsonTooltip(fields=["area_m2"], aliases=["Luas (m2):"]),
+    ).add_to(m)
+    folium.LayerControl().add_to(m)
+    m.fit_bounds([[south, west], [north, east]])
+
+    out = ROOT / cfg["output"]["dir"] / cfg["output"]["map_html"]
+    m.save(out)
+    return out
+
+
 def warn_if_sparse(count: int, threshold: int) -> None:
     """Peringatan jelas jika Overture tidak/sedikit mengembalikan bangunan."""
     if count == 0:
@@ -210,6 +259,10 @@ def main() -> None:
     for key, val in summary.iloc[0].items():
         print(f"{key:<18}: {val:,.2f}" if key != "jumlah_bangunan" else f"{key:<18}: {int(val)}")
     print(f"\nTersimpan: {geojson_path}\n           {csv_path}")
+
+    print("Membuat peta Folium...")
+    map_path = build_map(buildings, ortho_path, info, cfg)
+    print(f"           {map_path} ({map_path.stat().st_size / 1e6:.1f} MB)")
 
 
 if __name__ == "__main__":
