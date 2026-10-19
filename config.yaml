@@ -1,6 +1,7 @@
 ﻿# Path relatif terhadap root project (solar-rooftop-drone/)
 input:
-  ortho: data/ft_ugm_orto.tif
+  ortho: data/orto/ft_ugm_orto.tif
+  aoi: data/aoi/AOI_FT_UGM.shp   # kosongkan untuk clip ke data valid ortofoto
   clip_to_valid_data: true   # clip ke area ber-citra (bukan bounding box)
   valid_mask_max_px: 2000    # resolusi mask data valid (sisi terpanjang)
 
@@ -17,3 +18,4 @@ overture:
   release: latest        # atau versi tetap, mis. 2026-09-23.1
   min_area_m2: 1.0       # buang serpihan hasil clip di bawah luas ini
   min_buildings_warn: 5  # di bawah ini tampilkan peringatan cakupan
+

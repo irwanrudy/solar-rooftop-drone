@@ -157,6 +157,33 @@ def valid_data_footprint(path: Path, max_px: int = 2000, close_px: int = 3) -> B
     return geom.buffer(0)
 
 
+def _center(bbox_wgs84: tuple) -> tuple[float, float]:
+    """Titik tengah (lon, lat) dari bbox (W, S, E, N)."""
+    return (bbox_wgs84[0] + bbox_wgs84[2]) / 2, (bbox_wgs84[1] + bbox_wgs84[3]) / 2
+
+
+def load_aoi(path: Path) -> gpd.GeoDataFrame:
+    """Baca AOI (shapefile/GeoJSON/dll). CRS harus terdefinisi; geometri valid."""
+    aoi = gpd.read_file(path)
+    if aoi.crs is None:
+        raise ValueError(f"AOI tanpa CRS (.prj hilang?): {path}")
+    aoi = aoi[~aoi.geometry.is_empty & aoi.geometry.notna()].copy()
+    aoi["geometry"] = aoi.geometry.make_valid()
+    if aoi.empty:
+        raise ValueError(f"AOI kosong: {path}")
+    return aoi
+
+
+def report_ortho_coverage(aoi: gpd.GeoDataFrame, ortho_path: Path, max_px: int, ortho_crs: CRS) -> None:
+    """Cetak berapa persen AOI yang tertutup data valid ortofoto (peringatan bila kurang)."""
+    valid = gpd.GeoSeries([valid_data_footprint(ortho_path, max_px)], crs=ortho_crs)
+    aoi_geom = aoi.to_crs(ortho_crs).union_all()
+    share = aoi_geom.intersection(valid.iloc[0]).area / aoi_geom.area
+    print(f"Tutupan citra ortofoto di dalam AOI: {share:.1%}")
+    if share < 0.98:
+        print("PERINGATAN: sebagian AOI tidak punya citra ortofoto; luas atap di sana tidak terverifikasi.")
+
+
 def clip_and_measure(
     gdf: gpd.GeoDataFrame,
     extent_geom: BaseGeometry,
@@ -227,8 +254,11 @@ def ortho_overlay_png(path: Path, max_px: int) -> bytes:
         return mem_png.read()
 
 
-def build_map(gdf: gpd.GeoDataFrame, ortho_path: Path, info: dict, cfg: dict) -> Path:
-    """Peta Folium: footprint di atas ortofoto (overlay PNG ringan, tertanam)."""
+def build_map(
+    gdf: gpd.GeoDataFrame, ortho_path: Path, info: dict, cfg: dict,
+    aoi: gpd.GeoDataFrame | None = None,
+) -> Path:
+    """Peta Folium: footprint (+ batas AOI) di atas ortofoto (overlay PNG ringan)."""
     west, south, east, north = info["bounds_wgs84"]
     png = ortho_overlay_png(ortho_path, cfg["map"]["overlay_max_px"])
     data_uri = "data:image/png;base64," + base64.b64encode(png).decode()
@@ -244,8 +274,16 @@ def build_map(gdf: gpd.GeoDataFrame, ortho_path: Path, info: dict, cfg: dict) ->
         style_function=lambda _: {"color": "#ff3300", "weight": 1.5, "fillOpacity": 0.15},
         tooltip=folium.GeoJsonTooltip(fields=["area_m2"], aliases=["Luas (m2):"]),
     ).add_to(m)
+    view = (west, south, east, north)
+    if aoi is not None:
+        aoi_wgs = aoi.to_crs("EPSG:4326")
+        folium.GeoJson(
+            aoi_wgs[["geometry"]], name="AOI",
+            style_function=lambda _: {"color": "#00e5ff", "weight": 3, "fill": False},
+        ).add_to(m)
+        view = tuple(aoi_wgs.total_bounds)
     folium.LayerControl().add_to(m)
-    m.fit_bounds([[south, west], [north, east]])
+    m.fit_bounds([[view[1], view[0]], [view[3], view[2]]])
 
     out = ROOT / cfg["output"]["dir"] / cfg["output"]["map_html"]
     m.save(out)
@@ -275,19 +313,32 @@ def main() -> None:
     info = read_ortho_info(ortho_path)
     print_ortho_info(info)
 
+    aoi = None
+    if cfg["input"].get("aoi"):
+        aoi_path = ROOT / cfg["input"]["aoi"]
+        if not aoi_path.exists():
+            sys.exit(f"AOI tidak ditemukan: {aoi_path}")
+        aoi = load_aoi(aoi_path)
+        extent_geom, extent_crs = aoi.union_all(), aoi.crs
+        query_bbox = tuple(aoi.to_crs("EPSG:4326").total_bounds)
+        print(f"\n=== AOI ===\n{aoi_path.name}: {len(aoi)} poligon, "
+              f"{aoi.to_crs(utm_crs_for(*_center(query_bbox))).area.sum():,.0f} m2")
+    elif cfg["input"].get("clip_to_valid_data", True):
+        extent_geom = valid_data_footprint(ortho_path, cfg["input"]["valid_mask_max_px"])
+        extent_crs, query_bbox = info["crs"], info["bounds_wgs84"]
+    else:
+        extent_geom, extent_crs, query_bbox = box(*info["bounds"]), info["crs"], info["bounds_wgs84"]
+
+    if aoi is not None:
+        report_ortho_coverage(aoi, ortho_path, cfg["input"]["valid_mask_max_px"], info["crs"])
+
     print("\n=== Overture Maps ===")
     print("Mengunduh footprints (butuh internet)...")
-    raw = fetch_overture_buildings(info["bounds_wgs84"], cfg["overture"]["release"])
+    raw = fetch_overture_buildings(query_bbox, cfg["overture"]["release"])
     print(f"Diterima dari Overture: {len(raw)} bangunan")
-    if cfg["input"].get("clip_to_valid_data", True):
-        extent_geom = valid_data_footprint(ortho_path, cfg["input"]["valid_mask_max_px"])
-        bbox_area = box(*info["bounds"]).area
-        print(f"Area data valid: {extent_geom.area / bbox_area:.1%} dari bounding box ortofoto")
-    else:
-        extent_geom = box(*info["bounds"])
-    buildings = clip_and_measure(raw, extent_geom, info["crs"], cfg["overture"]["min_area_m2"])
-    print(f"Setelah clip ke extent: {len(buildings)} bangunan, "
-          f"total {buildings['area_m2'].sum():.1f} m2")
+    buildings = clip_and_measure(raw, extent_geom, extent_crs, cfg["overture"]["min_area_m2"])
+    print(f"Setelah clip ke {'AOI' if aoi is not None else 'extent'}: "
+          f"{len(buildings)} bangunan, total {buildings['area_m2'].sum():.1f} m2")
 
     warn_if_sparse(len(buildings), cfg["overture"]["min_buildings_warn"])
     summary = summarize(buildings)
@@ -298,7 +349,7 @@ def main() -> None:
     print(f"\nTersimpan: {geojson_path}\n           {csv_path}")
 
     print("Membuat peta Folium...")
-    map_path = build_map(buildings, ortho_path, info, cfg)
+    map_path = build_map(buildings, ortho_path, info, cfg, aoi)
     print(f"           {map_path} ({map_path.stat().st_size / 1e6:.1f} MB)")
 
 
