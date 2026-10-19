@@ -19,6 +19,7 @@ from pathlib import Path
 
 import duckdb
 import geopandas as gpd
+import pandas as pd
 import rasterio
 import shapely
 import yaml
@@ -123,11 +124,14 @@ def utm_crs_for(lon: float, lat: float) -> CRS:
     return CRS.from_epsg((32600 if lat >= 0 else 32700) + zone)
 
 
-def clip_and_measure(gdf: gpd.GeoDataFrame, bounds_wgs84: tuple) -> gpd.GeoDataFrame:
+def clip_and_measure(
+    gdf: gpd.GeoDataFrame, bounds_wgs84: tuple, min_area_m2: float = 0.0
+) -> gpd.GeoDataFrame:
     """Clip footprint ke extent ortofoto, reproject ke UTM, hitung `area_m2`.
 
     Bangunan yang terpotong tepi ortofoto diberi `is_edge=True` karena
-    luasnya hanya sebagian dari luas sebenarnya.
+    luasnya hanya sebagian dari luas sebenarnya. Serpihan dengan luas di
+    bawah `min_area_m2` (artefak clip) dibuang.
     """
     west, south, east, north = bounds_wgs84
     utm = utm_crs_for((west + east) / 2, (south + north) / 2)
@@ -139,8 +143,48 @@ def clip_and_measure(gdf: gpd.GeoDataFrame, bounds_wgs84: tuple) -> gpd.GeoDataF
     gdf["geometry"] = gdf.geometry.intersection(extent)
     gdf = gdf[~gdf.geometry.is_empty].reset_index(drop=True)
     gdf["area_m2"] = gdf.geometry.area.round(2)
+    gdf = gdf[gdf["area_m2"] >= min_area_m2].reset_index(drop=True)
     print(f"CRS analisis: {utm.to_string()} (UTM, otomatis)")
     return gdf
+
+
+def summarize(gdf: gpd.GeoDataFrame) -> pd.DataFrame:
+    """Ringkasan: jumlah bangunan, total luas, dan luas min/median/max (m2)."""
+    area = gdf["area_m2"] if len(gdf) else pd.Series([0.0])
+    rows = {
+        "jumlah_bangunan": len(gdf),
+        "total_luas_m2": round(float(area.sum()), 2),
+        "luas_min_m2": round(float(area.min()), 2),
+        "luas_median_m2": round(float(area.median()), 2),
+        "luas_max_m2": round(float(area.max()), 2),
+    }
+    return pd.DataFrame([rows])
+
+
+def save_outputs(gdf: gpd.GeoDataFrame, summary: pd.DataFrame, cfg: dict) -> tuple[Path, Path]:
+    """Simpan GeoJSON (WGS84) dan CSV ringkasan ke folder output."""
+    out_dir = ROOT / cfg["output"]["dir"]
+    out_dir.mkdir(parents=True, exist_ok=True)
+    geojson_path = out_dir / cfg["output"]["buildings_geojson"]
+    csv_path = out_dir / cfg["output"]["summary_csv"]
+    gdf.to_crs("EPSG:4326").to_file(geojson_path, driver="GeoJSON")
+    summary.to_csv(csv_path, index=False)
+    return geojson_path, csv_path
+
+
+def warn_if_sparse(count: int, threshold: int) -> None:
+    """Peringatan jelas jika Overture tidak/sedikit mengembalikan bangunan."""
+    if count == 0:
+        level = "TIDAK ADA bangunan"
+    elif count < threshold:
+        level = f"hanya {count} bangunan (di bawah ambang {threshold})"
+    else:
+        return
+    bar = "!" * 70
+    print(f"\n{bar}\nPERINGATAN: Overture mengembalikan {level} di area ini.\n"
+          "Cakupan Overture di Indonesia bisa bolong. Hasil luas atap tidak\n"
+          "bisa diandalkan; pertimbangkan deteksi atap sendiri (roadmap v0.3).\n"
+          f"{bar}\n")
 
 
 def main() -> None:
@@ -155,9 +199,17 @@ def main() -> None:
     print("Mengunduh footprints (butuh internet)...")
     raw = fetch_overture_buildings(info["bounds_wgs84"], cfg["overture"]["release"])
     print(f"Diterima dari Overture: {len(raw)} bangunan")
-    buildings = clip_and_measure(raw, info["bounds_wgs84"])
+    buildings = clip_and_measure(raw, info["bounds_wgs84"], cfg["overture"]["min_area_m2"])
     print(f"Setelah clip ke extent: {len(buildings)} bangunan, "
           f"total {buildings['area_m2'].sum():.1f} m2")
+
+    warn_if_sparse(len(buildings), cfg["overture"]["min_buildings_warn"])
+    summary = summarize(buildings)
+    geojson_path, csv_path = save_outputs(buildings, summary, cfg)
+    print("\n=== Ringkasan ===")
+    for key, val in summary.iloc[0].items():
+        print(f"{key:<18}: {val:,.2f}" if key != "jumlah_bangunan" else f"{key:<18}: {int(val)}")
+    print(f"\nTersimpan: {geojson_path}\n           {csv_path}")
 
 
 if __name__ == "__main__":
