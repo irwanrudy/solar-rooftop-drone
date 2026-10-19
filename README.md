@@ -123,6 +123,7 @@ Untuk membuka notebook: `pip install -r requirements-dev.txt`, jalankan `python 
 - Hasil bergantung pada kualitas dan kelengkapan data Overture di lokasi studi.
 - Posisi denah bisa bergeser relatif terhadap ortofoto (lihat disclaimer). Belum ada koreksi otomatis.
 - Ortofoto diasumsikan RGB. Piksel hitam murni dianggap "tidak ada data".
+- Ortofoto uji berumur sekitar tujuh tahun (2019) dibanding data denah yang dipakai, sehingga perubahan bangunan sejak saat itu tidak tertangkap.
 - Baru diuji pada satu area studi.
 
 ## Roadmap
@@ -134,6 +135,28 @@ Untuk membuka notebook: `pip install -r requirements-dev.txt`, jalankan `python 
 
 ## Sumber data dan atribusi
 
-- Denah bangunan: [Overture Maps Foundation](https://overturemaps.org/), tema *buildings*. Data ini memuat kontribusi OpenStreetMap dan dilisensikan di bawah [ODbL](https://opendatacommons.org/licenses/odbl/). Cek ketentuan lisensi sebelum memakai ulang hasilnya.
+### Ortofoto: OpenAerialMap
+
+| | |
+|---|---|
+| Judul | FT-UGM |
+| Sumber | [OpenAerialMap (HOT Imagery)](https://imagery.hotosm.org/browse?lat=-7.7653&lon=110.3728&zoom=16.2&platform=uav&selected_id=5e32915d4469a3000531a76b) |
+| Pengunggah / kontak | Dany Puguh Laksono (UGM) |
+| Platform dan sensor | UAV (drone), DJI FC300X |
+| Pemrosesan | WebODM |
+| Tanggal akuisisi | 26 Februari 2019 |
+| Resolusi | sekitar 7,5 cm per piksel, EPSG:3857, 3 band RGB |
+| Lisensi | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) |
+
+Ortofoto ini dipakai sesuai lisensi CC BY 4.0 dengan mencantumkan atribusi di atas. File aslinya tidak disertakan di repo (ukurannya besar dan sudah tersedia di OpenAerialMap). Silakan unduh sendiri dari tautan tersebut, atau pakai ortofoto lain berformat GeoTIFF RGB.
+
+> **Catatan waktu:** ortofoto direkam tahun 2019, sedangkan denah Overture berasal dari rilis yang jauh lebih baru. Bangunan yang dibangun, dibongkar, atau diubah di antara kedua tanggal itu bisa tidak cocok dengan citra.
+
+### Denah bangunan: Overture Maps
+
+[Overture Maps Foundation](https://overturemaps.org/), tema *buildings*. Data ini memuat kontribusi OpenStreetMap dan dilisensikan di bawah [ODbL](https://opendatacommons.org/licenses/odbl/). Cek ketentuan lisensi sebelum memakai ulang hasilnya.
+
+### Lainnya
+
 - Peta dasar pada `map.html`: © kontributor [OpenStreetMap](https://www.openstreetmap.org/copyright).
-- Ortofoto dan AOI adalah data milik pembuat project dan tidak disertakan dalam repo.
+- AOI (batas area studi) dibuat sendiri oleh pembuat project dan tidak disertakan dalam repo.
