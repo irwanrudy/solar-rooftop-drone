@@ -5,4 +5,5 @@ shapely
 pyproj
 folium
 overturemaps
+duckdb
 pyyaml

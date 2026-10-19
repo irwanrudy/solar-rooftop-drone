@@ -1,6 +1,6 @@
 ﻿# Path relatif terhadap root project (solar-rooftop-drone/)
 input:
-  ortho: data/5e3291094469a3000531a76a.tif
+  ortho: data/ft_ugm_orto.tif
 
 output:
   dir: output
@@ -12,4 +12,5 @@ map:
   overlay_max_px: 2000   # sisi terpanjang overlay PNG (downsample)
 
 overture:
+  release: latest        # atau versi tetap, mis. 2026-09-23.1
   min_buildings_warn: 5  # di bawah ini tampilkan peringatan cakupan
