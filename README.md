@@ -108,10 +108,14 @@ solar-rooftop-drone/
 ├── src/footprints.py   # script utama
 ├── config.yaml         # semua path dan parameter
 ├── requirements.txt
+├── requirements-dev.txt  # tambahan untuk notebook (jupyterlab, matplotlib)
 ├── data/               # input (tidak di-commit)
 ├── output/             # hasil (tidak di-commit)
 └── notebooks/
+    └── 01_explore_footprints.ipynb   # ringkasan dan grafik hasil v0.1
 ```
+
+Untuk membuka notebook: `pip install -r requirements-dev.txt`, jalankan `python src/footprints.py` dulu, lalu `jupyter lab`.
 
 ## Keterbatasan
 
