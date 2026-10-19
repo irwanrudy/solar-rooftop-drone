@@ -26,11 +26,15 @@ import pandas as pd
 import rasterio
 import rasterio.shutil
 import shapely
+import shapely.geometry
 import yaml
 from pyproj import CRS, Transformer
+from rasterio import features
 from rasterio.enums import Resampling
 from rasterio.io import MemoryFile
-from shapely.geometry import box
+from shapely.geometry import Polygon, box
+from shapely.geometry.base import BaseGeometry
+from shapely.ops import unary_union
 
 ROOT = Path(__file__).resolve().parent.parent
 CONFIG_PATH = ROOT / "config.yaml"
@@ -130,18 +134,45 @@ def utm_crs_for(lon: float, lat: float) -> CRS:
     return CRS.from_epsg((32600 if lat >= 0 else 32700) + zone)
 
 
-def clip_and_measure(
-    gdf: gpd.GeoDataFrame, bounds_wgs84: tuple, min_area_m2: float = 0.0
-) -> gpd.GeoDataFrame:
-    """Clip footprint ke extent ortofoto, reproject ke UTM, hitung `area_m2`.
+def valid_data_footprint(path: Path, max_px: int = 2000, close_px: int = 3) -> BaseGeometry:
+    """Poligon area ortofoto yang benar-benar berisi citra (CRS ortofoto).
 
-    Bangunan yang terpotong tepi ortofoto diberi `is_edge=True` karena
+    Piksel hitam murni (0,0,0) dianggap tanpa data. Mask dibaca pada
+    resolusi rendah (`max_px`), di-polygonize, lubang kecil ditutup, dan
+    tepinya dihaluskan (`close_px` piksel) agar tidak bergerigi.
+    """
+    with rasterio.open(path) as src:
+        scale = max_px / max(src.width, src.height)
+        shape = (max(1, round(src.height * scale)), max(1, round(src.width * scale)))
+        data = src.read(out_shape=shape, resampling=Resampling.nearest)
+        transform = src.transform * src.transform.scale(src.width / shape[1], src.height / shape[0])
+
+    valid = (data.sum(axis=0) > 0).astype("uint8")
+    polys = [shapely.geometry.shape(g) for g, v in features.shapes(valid, transform=transform) if v == 1]
+    if not polys:
+        raise ValueError("Ortofoto tidak punya piksel data valid.")
+    geom = unary_union([Polygon(p.exterior) for p in polys])  # buang lubang internal
+    pix = abs(transform.a)
+    geom = geom.buffer(close_px * pix).buffer(-close_px * pix)
+    return geom.buffer(0)
+
+
+def clip_and_measure(
+    gdf: gpd.GeoDataFrame,
+    extent_geom: BaseGeometry,
+    extent_crs: CRS,
+    min_area_m2: float = 0.0,
+) -> gpd.GeoDataFrame:
+    """Clip footprint ke area data ortofoto, reproject ke UTM, hitung `area_m2`.
+
+    `extent_geom` (CRS `extent_crs`) adalah area clip, idealnya poligon data
+    valid ortofoto. Bangunan yang terpotong tepi diberi `is_edge=True` karena
     luasnya hanya sebagian dari luas sebenarnya. Serpihan dengan luas di
     bawah `min_area_m2` (artefak clip) dibuang.
     """
-    west, south, east, north = bounds_wgs84
-    utm = utm_crs_for((west + east) / 2, (south + north) / 2)
-    extent = gpd.GeoSeries([box(west, south, east, north)], crs="EPSG:4326").to_crs(utm).iloc[0]
+    center = gpd.GeoSeries([extent_geom.centroid], crs=extent_crs).to_crs("EPSG:4326").iloc[0]
+    utm = utm_crs_for(center.x, center.y)
+    extent = gpd.GeoSeries([extent_geom], crs=extent_crs).to_crs(utm).iloc[0]
 
     gdf = gdf.to_crs(utm)
     gdf = gdf[gdf.geometry.intersects(extent)].copy()
@@ -248,7 +279,13 @@ def main() -> None:
     print("Mengunduh footprints (butuh internet)...")
     raw = fetch_overture_buildings(info["bounds_wgs84"], cfg["overture"]["release"])
     print(f"Diterima dari Overture: {len(raw)} bangunan")
-    buildings = clip_and_measure(raw, info["bounds_wgs84"], cfg["overture"]["min_area_m2"])
+    if cfg["input"].get("clip_to_valid_data", True):
+        extent_geom = valid_data_footprint(ortho_path, cfg["input"]["valid_mask_max_px"])
+        bbox_area = box(*info["bounds"]).area
+        print(f"Area data valid: {extent_geom.area / bbox_area:.1%} dari bounding box ortofoto")
+    else:
+        extent_geom = box(*info["bounds"])
+    buildings = clip_and_measure(raw, extent_geom, info["crs"], cfg["overture"]["min_area_m2"])
     print(f"Setelah clip ke extent: {len(buildings)} bangunan, "
           f"total {buildings['area_m2'].sum():.1f} m2")
 

@@ -1,6 +1,8 @@
 ﻿# Path relatif terhadap root project (solar-rooftop-drone/)
 input:
   ortho: data/ft_ugm_orto.tif
+  clip_to_valid_data: true   # clip ke area ber-citra (bukan bounding box)
+  valid_mask_max_px: 2000    # resolusi mask data valid (sisi terpanjang)
 
 output:
   dir: output
