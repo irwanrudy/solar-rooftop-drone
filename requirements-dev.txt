@@ -1,3 +1,4 @@
 ﻿-r requirements.txt
 matplotlib
 jupyterlab
+pytest
