@@ -37,6 +37,9 @@ from shapely.geometry import Polygon, box
 from shapely.geometry.base import BaseGeometry
 from shapely.ops import unary_union
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))  # agar `import solar` jalan dari mana saja
+import solar  # noqa: E402
+
 ROOT = Path(__file__).resolve().parent.parent
 CONFIG_PATH = ROOT / "config.yaml"
 
@@ -226,15 +229,28 @@ def summarize(gdf: gpd.GeoDataFrame) -> pd.DataFrame:
     return pd.DataFrame([rows])
 
 
-def save_outputs(gdf: gpd.GeoDataFrame, summary: pd.DataFrame, cfg: dict) -> tuple[Path, Path]:
-    """Simpan GeoJSON (WGS84) dan CSV ringkasan ke folder output."""
+def save_outputs(
+    gdf: gpd.GeoDataFrame, summary: pd.DataFrame, cfg: dict, scenario_df: pd.DataFrame | None = None
+) -> tuple[Path, Path]:
+    """Simpan GeoJSON (WGS84), CSV ringkasan, dan (jika ada) CSV skenario energi."""
     out_dir = ROOT / cfg["output"]["dir"]
     out_dir.mkdir(parents=True, exist_ok=True)
     geojson_path = out_dir / cfg["output"]["buildings_geojson"]
     csv_path = out_dir / cfg["output"]["summary_csv"]
     gdf.to_crs("EPSG:4326").to_file(geojson_path, driver="GeoJSON")
     summary.to_csv(csv_path, index=False)
+    if scenario_df is not None:
+        scenario_df.to_csv(out_dir / cfg["output"]["scenarios_csv"], index=False)
     return geojson_path, csv_path
+
+
+def print_scenarios(df: pd.DataFrame, ghi: float, base_name: str) -> None:
+    """Cetak tabel skenario energi beserta pengingat bahwa ini screening."""
+    print(f"\n=== Estimasi energi (GHI {ghi:.0f} kWh/m2/tahun; skenario dasar: {base_name}) ===")
+    cols = ["skenario", "faktor_pemanfaatan", "efisiensi_modul", "performance_ratio",
+            "kapasitas_kwp", "energi_mwh_tahun"]
+    print(df[cols].to_string(index=False))
+    print("Screening berbasis luas: tanpa kemiringan, arah, dan bayangan atap.")
 
 
 def ortho_overlay_png(path: Path, max_px: int) -> bytes:
@@ -262,7 +278,9 @@ MAP_NOTE_HTML = """
             font:12px/1.4 system-ui,sans-serif;color:#222;box-shadow:0 1px 5px rgba(0,0,0,.4)">
   <b>Cara membaca:</b> kotak merah = denah bangunan, garis biru = batas area studi.
   Arahkan kursor ke bangunan untuk melihat luas denahnya.<br>
-  <b>Screening awal</b>, bukan desain teknis: luas denah belum berarti luas atap yang bisa dipasangi panel.<br>
+  <b>Screening awal</b>, bukan desain teknis: luas denah belum berarti luas atap yang bisa dipasangi panel.
+  Angka kapasitas dan energi memakai skenario dasar (rentang rendah-tinggi ada di README) dan
+  tidak memodelkan kemiringan, arah, atau bayangan atap.<br>
   <span style="color:#555">Ortofoto: OpenAerialMap, Dany Puguh Laksono (UGM), 2019,
   <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank">CC BY 4.0</a>.
   Denah: Overture Maps (ODbL). Peta dasar: &copy; OpenStreetMap.</span>
@@ -284,11 +302,15 @@ def build_map(
     folium.raster_layers.ImageOverlay(
         image=data_uri, bounds=[[south, west], [north, east]], name="Ortofoto", opacity=1.0
     ).add_to(m)
+    fields = {"area_m2": "Luas denah (m2):"}
+    if "kwh_year" in gdf:
+        fields |= {"eff_area_m2": "Luas efektif (m2):", "kwp": "Kapasitas (kWp):",
+                   "kwh_year": "Energi dasar (kWh/thn):"}
     folium.GeoJson(
-        gdf.to_crs("EPSG:4326")[["id", "area_m2", "is_edge", "geometry"]],
+        gdf.to_crs("EPSG:4326")[["id", "is_edge", *fields, "geometry"]],
         name="Footprint Overture",
         style_function=lambda _: {"color": "#ff3300", "weight": 1.5, "fillOpacity": 0.15},
-        tooltip=folium.GeoJsonTooltip(fields=["area_m2"], aliases=["Luas (m2):"]),
+        tooltip=folium.GeoJsonTooltip(fields=list(fields), aliases=list(fields.values())),
     ).add_to(m)
     view = (west, south, east, north)
     if aoi is not None:
@@ -366,8 +388,17 @@ def main() -> None:
           f"{len(buildings)} bangunan, total {buildings['area_m2'].sum():.1f} m2")
 
     warn_if_sparse(len(buildings), cfg["overture"]["min_buildings_warn"])
+    scenario_df = None
+    solar_cfg = cfg.get("solar", {})
+    if solar_cfg.get("enabled"):
+        scenarios = solar.scenarios_from_config(solar_cfg)
+        base = next(s for s in scenarios if s.name == solar_cfg["base_scenario"])
+        ghi = solar_cfg["annual_ghi_kwh_m2"]
+        buildings = solar.add_estimates(buildings, base, ghi)
+        scenario_df = solar.scenario_table(buildings["area_m2"], scenarios, ghi)
+        print_scenarios(scenario_df, ghi, base.name)
     summary = summarize(buildings)
-    geojson_path, csv_path = save_outputs(buildings, summary, cfg)
+    geojson_path, csv_path = save_outputs(buildings, summary, cfg, scenario_df)
     print("\n=== Ringkasan ===")
     for key, val in summary.iloc[0].items():
         print(f"{key:<18}: {val:,.2f}" if key != "jumlah_bangunan" else f"{key:<18}: {int(val)}")

@@ -9,11 +9,34 @@ output:
   dir: output
   buildings_geojson: buildings.geojson
   summary_csv: buildings_summary.csv
+  scenarios_csv: solar_scenarios.csv
   map_html: map.html
   publish_copy: docs/index.html   # salinan peta untuk GitHub Pages (kosongkan untuk menonaktifkan)
 
 map:
   overlay_max_px: 2000   # sisi terpanjang overlay PNG (downsample)
+
+# Estimasi energi (v0.2). Screening berbasis luas, bukan desain teknis.
+# Sumber setiap angka: lihat bagian "Referensi" di README.
+solar:
+  enabled: true
+  base_scenario: base
+  # Iradiasi global horizontal tahunan di lokasi studi (kWh/m2/tahun).
+  # PVGIS-ERA5 2005-2023 di -7.7653, 110.3728: 1917.6 (NASA POWER: 1883 sebagai pembanding).
+  annual_ghi_kwh_m2: 1918
+  scenarios:
+    low:    # konservatif: atap miring/terbatas, modul lebih lama, rugi besar
+      utilization_factor: 0.125   # Widodo dkk. 2020 (Semarang, dataran rendah)
+      module_efficiency: 0.15     # asumsi MEMR, dikutip Tampubolon dkk. 2019 (IESR)
+      performance_ratio: 0.60     # Widodo dkk. 2020, batas bawah rentang derate
+    base:   # nilai tengah
+      utilization_factor: 0.49    # Triana dkk. 2024 (rumah sedang / apartemen)
+      module_efficiency: 0.173    # Triana dkk. 2024, skenario efisiensi 1
+      performance_ratio: 0.75     # Widodo dkk. 2020 (derate "tipikal" 0.75)
+    high:   # optimistis: atap datar/lapang, modul modern, rugi kecil
+      utilization_factor: 0.64    # Triana dkk. 2024 (rumah besar); komersial 0.60
+      module_efficiency: 0.228    # Triana dkk. 2024, skenario efisiensi 2
+      performance_ratio: 0.80     # Widodo dkk. 2020, batas atas rentang derate
 
 overture:
   release: latest        # atau versi tetap, mis. 2026-09-23.1
