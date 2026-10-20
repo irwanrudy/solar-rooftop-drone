@@ -1,0 +1,6 @@
+﻿# Dependency berat untuk v0.3 (deteksi atap dengan SAM).
+# Pasang PyTorch CUDA lebih dulu (lihat README):
+#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
+-r requirements.txt
+segment-geospatial
+opencv-python-headless

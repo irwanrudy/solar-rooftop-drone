@@ -5,3 +5,5 @@ __pycache__/
 .ipynb_checkpoints/
 .vscode/
 data/aoi/backup_*/
+models/
+*.pth
