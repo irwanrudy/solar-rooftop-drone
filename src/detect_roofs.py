@@ -15,9 +15,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import geopandas as gpd  # noqa: E402
 import numpy as np  # noqa: E402
+import pandas as pd  # noqa: E402
 from rasterio.transform import Affine  # noqa: E402
 
+import compare  # noqa: E402
+import footprints  # noqa: E402
+import roof_filters  # noqa: E402
 import roof_raster  # noqa: E402
+from sam_backend import SamBackend  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -44,3 +49,130 @@ def write_geojson(gdf: gpd.GeoDataFrame, path: Path) -> None:
         path.write_text('{"type": "FeatureCollection", "features": []}', encoding="utf-8")
     else:
         gdf.to_crs("EPSG:4326").to_file(path, driver="GeoJSON")
+
+
+def run_guided(
+    backend, image: np.ndarray, transform: Affine, crs, overture: gpd.GeoDataFrame, sam_cfg: dict
+) -> gpd.GeoDataFrame:
+    """SAM dipandu: tiap denah Overture jadi prompt kotak pada crop di sekitarnya.
+
+    Dipilih satu dari tiga mask dengan IoU tertinggi terhadap denah. Denah yang
+    tidak menghasilkan mask dilewati (tidak ada barisnya pada hasil).
+    """
+    _, height, width = image.shape
+    inv = ~transform
+    gsd = abs(transform.a)
+    pad = sam_cfg["guided"]["box_pad_m"] / gsd
+    rows = []
+    for idx, geom in overture.geometry.items():
+        minx, miny, maxx, maxy = geom.bounds
+        c0, r1 = inv @ (minx, miny)
+        c1, r0 = inv @ (maxx, maxy)
+        bx0, by0, bx1, by1 = c0 - pad, r0 - pad, c1 + pad, r1 + pad
+        margin = max(20.0, 0.5 * max(bx1 - bx0, by1 - by0))
+        crop_r0, crop_r1 = max(0, int(by0 - margin)), min(height, int(np.ceil(by1 + margin)))
+        crop_c0, crop_c1 = max(0, int(bx0 - margin)), min(width, int(np.ceil(bx1 + margin)))
+        if crop_r1 <= crop_r0 or crop_c1 <= crop_c0:
+            continue
+        crop = np.ascontiguousarray(image[:, crop_r0:crop_r1, crop_c0:crop_c1].transpose(1, 2, 0))
+        box_crop = [
+            max(0.0, bx0 - crop_c0), max(0.0, by0 - crop_r0),
+            min(crop.shape[1], bx1 - crop_c0), min(crop.shape[0], by1 - crop_r0),
+        ]
+        masks, scores = backend.predict_box(crop, box_crop)
+        crop_transform = transform @ Affine.translation(crop_c0, crop_r0)
+        best = None
+        for mask, score in zip(masks, scores):
+            polys = roof_raster.mask_to_polygons(mask, crop_transform)
+            if not polys:
+                continue
+            poly = max(polys, key=lambda p: p.area)
+            value = compare.iou(geom, poly)
+            if best is None or value > best[0]:
+                best = (value, poly, float(score))
+        if best is not None:
+            rows.append({"idx": idx, "geometry": best[1], "iou_overture": round(best[0], 3),
+                         "sam_score": round(best[2], 3), "area_m2": round(best[1].area, 2)})
+    if not rows:
+        return gpd.GeoDataFrame({"iou_overture": [], "sam_score": [], "area_m2": []}, geometry=[], crs=crs)
+    out = gpd.GeoDataFrame(rows, geometry="geometry", crs=crs).set_index("idx")
+    out.index.name = None
+    return out
+
+
+def load_overture_utm(cfg: dict, utm) -> gpd.GeoDataFrame:
+    """Baca denah Overture hasil v0.1 (output/buildings.geojson) dalam CRS metrik."""
+    path = ROOT / cfg["output"]["dir"] / cfg["output"]["buildings_geojson"]
+    if not path.exists():
+        sys.exit(f"{path} belum ada. Jalankan dulu: python src/footprints.py")
+    return gpd.read_file(path).to_crs(utm)
+
+
+def main() -> None:
+    cfg = footprints.load_config()
+    sam_cfg, cmp_cfg = cfg["sam"], cfg["compare"]
+    ortho_path = ROOT / cfg["input"]["ortho"]
+    if not cfg["input"].get("aoi"):
+        sys.exit("v0.3 membutuhkan AOI: isi input.aoi di config.yaml.")
+    aoi = footprints.load_aoi(ROOT / cfg["input"]["aoi"])
+    info = footprints.read_ortho_info(ortho_path)
+
+    center = aoi.to_crs("EPSG:4326").union_all().centroid
+    utm = footprints.utm_crs_for(center.x, center.y)
+    aoi_geom = aoi.to_crs(utm).union_all()
+    overture = load_overture_utm(cfg, utm)
+
+    print(f"Menyiapkan citra kerja ({sam_cfg['working_gsd_m']} m/piksel, {utm.to_string()})...")
+    image, transform = roof_raster.prepare_working_image(
+        ortho_path, aoi_geom, utm, utm, sam_cfg["working_gsd_m"]
+    )
+    print(f"Citra kerja: {image.shape[2]} x {image.shape[1]} piksel")
+
+    backend = SamBackend(sam_cfg["model_type"], ROOT / sam_cfg["checkpoint_dir"],
+                         sam_cfg["device"], sam_cfg["auto"]["amg"])
+    print(f"SAM {sam_cfg['model_type']} di {backend.device}")
+
+    print("Mode mandiri...")
+    raw = run_auto(backend, image, transform, utm, sam_cfg)
+    clipped = roof_raster.clip_to_aoi(raw, aoi_geom)
+    kept, report = roof_filters.apply_filters(clipped, image, transform, sam_cfg["filters"])
+    print(f"Segmen: {report['awal']} -> luas {report['lolos_luas']} -> bentuk {report['lolos_solidity']} "
+          f"-> kecerahan {report['lolos_kecerahan']} -> vegetasi {report['lolos_vegetasi']}")
+    if kept.empty:
+        print("PERINGATAN: tidak ada kandidat atap yang lolos filter. Longgarkan ambang sam.filters.")
+
+    print("Mode dipandu Overture...")
+    guided = run_guided(backend, image, transform, utm, overture, sam_cfg)
+
+    result = compare.match(overture, kept, cmp_cfg["min_overlap"], cmp_cfg["match_iou"])
+    kept = kept.assign(overture_idx=result.assignment.values)
+    kept["status"] = np.where(kept["overture_idx"].isna(), "hanya_sam", "terkait_overture")
+    offsets = compare.centroid_offsets(overture, guided)
+    summary = {
+        **compare.comparison_summary(overture, kept, result),
+        **compare.offset_summary(offsets),
+        "denah_dipandu_berhasil": len(guided),
+        **{f"filter_{k}": v for k, v in report.items()},
+    }
+
+    out_dir = ROOT / cfg["output"]["dir"]
+    write_geojson(kept, out_dir / cfg["output"]["sam_auto_geojson"])
+    write_geojson(guided, out_dir / cfg["output"]["sam_guided_geojson"])
+    pd.DataFrame([summary]).to_csv(out_dir / cfg["output"]["comparison_csv"], index=False)
+
+    print("\n=== Perbandingan SAM vs Overture (kesesuaian, bukan akurasi) ===")
+    for key, value in summary.items():
+        print(f"{key:<24}: {value}")
+
+    layers = [
+        {"name": "SAM mandiri (kandidat atap)", "gdf": kept, "color": "#2ecc71"},
+        {"name": "SAM dipandu Overture", "gdf": guided, "color": "#f1c40f", "show": False},
+        {"name": "Hanya SAM (periksa manual)", "gdf": kept[kept["status"] == "hanya_sam"],
+         "color": "#ff8800", "weight": 3},
+    ]
+    map_path = footprints.build_map(overture, ortho_path, info, cfg, aoi, extra_layers=layers)
+    print(f"\nPeta: {map_path}")
+
+
+if __name__ == "__main__":
+    main()

@@ -47,3 +47,26 @@ def test_write_geojson_empty_and_nonempty(tmp_path):
     q = tmp_path / "f.geojson"
     detect_roofs.write_geojson(full, q)
     assert len(json.loads(q.read_text())["features"]) == 1
+
+
+def test_run_guided_maps_crop_back_to_world_coordinates():
+    image = np.zeros((3, 200, 200), dtype="uint8")
+    overture = gpd.GeoDataFrame(geometry=[box(50, 100, 80, 130)], crs="EPSG:32749")
+    out = detect_roofs.run_guided(
+        FakeBackend(), image, from_origin(0, 200, 1, 1), "EPSG:32749", overture, SAM_CFG
+    )
+    assert list(out.index) == [0]
+    # FakeBackend mengembalikan persis kotak prompt: denah dilebarkan 2 m ke semua sisi
+    assert out.geometry.iloc[0].bounds == pytest.approx((48.0, 98.0, 82.0, 132.0))
+    assert out["iou_overture"].iloc[0] == pytest.approx(900 / 1156, abs=1e-3)  # kolom dibulatkan 3 desimal
+
+
+def test_run_guided_skips_building_when_sam_returns_empty_masks():
+    class EmptyBackend(FakeBackend):
+        def predict_box(self, image, box_xyxy):
+            return np.zeros((3, *image.shape[:2]), dtype=bool), np.zeros(3)
+
+    image = np.zeros((3, 100, 100), dtype="uint8")
+    overture = gpd.GeoDataFrame(geometry=[box(10, 10, 30, 30)], crs="EPSG:32749")
+    out = detect_roofs.run_guided(EmptyBackend(), image, from_origin(0, 100, 1, 1), "EPSG:32749", overture, SAM_CFG)
+    assert out.empty
