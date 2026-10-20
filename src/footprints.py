@@ -290,9 +290,12 @@ MAP_NOTE_HTML = """
 
 def build_map(
     gdf: gpd.GeoDataFrame, ortho_path: Path, info: dict, cfg: dict,
-    aoi: gpd.GeoDataFrame | None = None,
+    aoi: gpd.GeoDataFrame | None = None, extra_layers: list[dict] | None = None,
 ) -> Path:
-    """Peta Folium: footprint (+ batas AOI) di atas ortofoto (overlay PNG ringan)."""
+    """Peta Folium: footprint (+ batas AOI) di atas ortofoto (overlay PNG ringan).
+
+    `extra_layers`: daftar dict {name, gdf, color, weight (opsional), show (opsional)}.
+    """
     west, south, east, north = info["bounds_wgs84"]
     png = ortho_overlay_png(ortho_path, cfg["map"]["overlay_max_px"])
     data_uri = "data:image/png;base64," + base64.b64encode(png).decode()
@@ -320,6 +323,19 @@ def build_map(
             style_function=lambda _: {"color": "#00e5ff", "weight": 3, "fill": False},
         ).add_to(m)
         view = tuple(aoi_wgs.total_bounds)
+    for layer in extra_layers or []:
+        layer_gdf = layer["gdf"]
+        if layer_gdf.empty:
+            continue
+        simple = layer_gdf.copy()
+        simple["geometry"] = simple.geometry.simplify(0.3)  # meter, CRS metrik
+        folium.GeoJson(
+            simple.to_crs("EPSG:4326")[["geometry"]],
+            name=layer["name"],
+            show=layer.get("show", True),
+            style_function=lambda _, c=layer["color"], w=layer.get("weight", 1.5): {
+                "color": c, "weight": w, "fillOpacity": 0.1},
+        ).add_to(m)
     folium.LayerControl().add_to(m)
     m.fit_bounds([[view[1], view[0]], [view[3], view[2]]])
 
