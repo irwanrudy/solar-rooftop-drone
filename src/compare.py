@@ -104,7 +104,8 @@ def comparison_summary(
     with_seg = per["n_segments"] > 0
     ious = per.loc[matched, "iou"]
     a_ov = float(overture.geometry.area.sum()) if len(overture) else 0.0
-    a_sam = float(segments.geometry.area.sum()) if len(segments) else 0.0
+    # luas gabungan: segmen SAM bisa bersarang (atap utuh + bidang-bidangnya)
+    a_sam = float(_valid_gdf(segments).union_all().area) if len(segments) else 0.0
     return {
         "cocok": int(matched.sum()),
         "kurang_cocok": int((with_seg & ~matched).sum()),

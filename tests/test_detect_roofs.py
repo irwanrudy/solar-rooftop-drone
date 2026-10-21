@@ -70,3 +70,17 @@ def test_run_guided_skips_building_when_sam_returns_empty_masks():
     overture = gpd.GeoDataFrame(geometry=[box(10, 10, 30, 30)], crs="EPSG:32749")
     out = detect_roofs.run_guided(EmptyBackend(), image, from_origin(0, 100, 1, 1), "EPSG:32749", overture, SAM_CFG)
     assert out.empty
+
+
+def test_read_geojson_roundtrip_nonempty_and_empty(tmp_path):
+    g = gpd.GeoDataFrame({"overture_idx": [7]}, geometry=[box(430600, 9141500, 430610, 9141510)], crs="EPSG:32749")
+    p = tmp_path / "g.geojson"
+    detect_roofs.write_geojson(g, p)
+    back = detect_roofs.read_geojson(p, "EPSG:32749")
+    assert back.crs.to_string() == "EPSG:32749" and back.geometry.iloc[0].area == pytest.approx(100, rel=1e-3)
+    assert list(back["overture_idx"]) == [7]
+
+    q = tmp_path / "e.geojson"
+    detect_roofs.write_geojson(gpd.GeoDataFrame(geometry=[], crs="EPSG:32749"), q)
+    empty = detect_roofs.read_geojson(q, "EPSG:32749")
+    assert empty.empty and empty.crs.to_string() == "EPSG:32749"

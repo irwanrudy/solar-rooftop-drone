@@ -1,7 +1,8 @@
 """Deteksi atap dengan SAM dan perbandingan dengan denah Overture (v0.3).
 
 Jalankan dari root project setelah `python src/footprints.py`:
-    python src/detect_roofs.py
+    python src/detect_roofs.py            # jalankan SAM (sekitar 12 menit)
+    python src/detect_roofs.py --reuse    # pakai segmen SAM tersimpan, hanya filter dan perbandingan
 Semua path dan parameter dibaca dari config.yaml (bagian `sam` dan `compare`).
 Hasil adalah kesesuaian antar-metode, BUKAN akurasi (tidak ada data acuan).
 """
@@ -49,6 +50,14 @@ def write_geojson(gdf: gpd.GeoDataFrame, path: Path) -> None:
         path.write_text('{"type": "FeatureCollection", "features": []}', encoding="utf-8")
     else:
         gdf.to_crs("EPSG:4326").to_file(path, driver="GeoJSON")
+
+
+def read_geojson(path: Path, crs) -> gpd.GeoDataFrame:
+    """Baca GeoJSON hasil `write_geojson` ke `crs`; berkas kosong menjadi GeoDataFrame kosong."""
+    gdf = gpd.read_file(path)
+    if gdf.empty:
+        return gpd.GeoDataFrame(geometry=[], crs=crs)
+    return gdf.to_crs(crs)
 
 
 def run_guided(
@@ -108,7 +117,7 @@ def load_overture_utm(cfg: dict, utm) -> gpd.GeoDataFrame:
     return gpd.read_file(path).to_crs(utm)
 
 
-def main() -> None:
+def main(reuse: bool = False) -> None:
     cfg = footprints.load_config()
     sam_cfg, cmp_cfg = cfg["sam"], cfg["compare"]
     ortho_path = ROOT / cfg["input"]["ortho"]
@@ -128,21 +137,38 @@ def main() -> None:
     )
     print(f"Citra kerja: {image.shape[2]} x {image.shape[1]} piksel")
 
-    backend = SamBackend(sam_cfg["model_type"], ROOT / sam_cfg["checkpoint_dir"],
-                         sam_cfg["device"], sam_cfg["auto"]["amg"])
-    print(f"SAM {sam_cfg['model_type']} di {backend.device}")
+    out_dir = ROOT / cfg["output"]["dir"]
+    raw_path = out_dir / cfg["output"]["sam_raw_geojson"]
+    guided_path = out_dir / cfg["output"]["sam_guided_geojson"]
+    if reuse:
+        missing = [p for p in (raw_path, guided_path) if not p.exists()]
+        if missing:
+            sys.exit(f"--reuse butuh {missing[0]}; jalankan dulu tanpa --reuse.")
+        print("Memakai hasil SAM tersimpan (--reuse); SAM tidak dijalankan.")
+        clipped = read_geojson(raw_path, utm)
+        guided = read_geojson(guided_path, utm)
+        if "overture_idx" in guided:
+            guided = guided.set_index("overture_idx")
+            guided.index.name = None
+    else:
+        backend = SamBackend(sam_cfg["model_type"], ROOT / sam_cfg["checkpoint_dir"],
+                             sam_cfg["device"], sam_cfg["auto"]["amg"])
+        print(f"SAM {sam_cfg['model_type']} di {backend.device}")
 
-    print("Mode mandiri...")
-    raw = run_auto(backend, image, transform, utm, sam_cfg)
-    clipped = roof_raster.clip_to_aoi(raw, aoi_geom)
+        print("Mode mandiri...")
+        raw = run_auto(backend, image, transform, utm, sam_cfg)
+        clipped = roof_raster.clip_to_aoi(raw, aoi_geom)
+        write_geojson(clipped, raw_path)
+
+        print("Mode dipandu Overture...")
+        guided = run_guided(backend, image, transform, utm, overture, sam_cfg)
+        write_geojson(guided.assign(overture_idx=guided.index), guided_path)
+
     kept, report = roof_filters.apply_filters(clipped, image, transform, sam_cfg["filters"])
     print(f"Segmen: {report['awal']} -> luas {report['lolos_luas']} -> bentuk {report['lolos_solidity']} "
           f"-> kecerahan {report['lolos_kecerahan']} -> vegetasi {report['lolos_vegetasi']}")
     if kept.empty:
         print("PERINGATAN: tidak ada kandidat atap yang lolos filter. Longgarkan ambang sam.filters.")
-
-    print("Mode dipandu Overture...")
-    guided = run_guided(backend, image, transform, utm, overture, sam_cfg)
 
     result = compare.match(overture, kept, cmp_cfg["min_overlap"], cmp_cfg["match_iou"])
     kept = kept.assign(overture_idx=result.assignment.values)
@@ -155,9 +181,7 @@ def main() -> None:
         **{f"filter_{k}": v for k, v in report.items()},
     }
 
-    out_dir = ROOT / cfg["output"]["dir"]
     write_geojson(kept, out_dir / cfg["output"]["sam_auto_geojson"])
-    write_geojson(guided, out_dir / cfg["output"]["sam_guided_geojson"])
     pd.DataFrame([summary]).to_csv(out_dir / cfg["output"]["comparison_csv"], index=False)
 
     print("\n=== Perbandingan SAM vs Overture (kesesuaian, bukan akurasi) ===")
@@ -175,4 +199,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    main(reuse="--reuse" in sys.argv[1:])

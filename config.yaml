@@ -12,6 +12,7 @@ output:
   scenarios_csv: solar_scenarios.csv
   map_html: map.html
   publish_copy: docs/index.html   # salinan peta untuk GitHub Pages (kosongkan untuk menonaktifkan)
+  sam_raw_geojson: roofs_sam_raw.geojson     # segmen SAM sebelum filter (cache untuk --reuse)
   sam_auto_geojson: roofs_sam_auto.geojson
   sam_guided_geojson: roofs_sam_guided.geojson
   comparison_csv: comparison_summary.csv
@@ -57,7 +58,7 @@ sam:
       stability_score_thresh: 0.92
       min_mask_region_area: 100
   filters:
-    min_area_m2: 10
+    min_area_m2: 30          # run 1 (ambang 10): median hanya-SAM 50 m2, banyak serpihan
     max_area_m2: 6000
     min_solidity: 0.75
     min_brightness: 15       # buang area tanpa data (piksel hitam)

@@ -103,3 +103,10 @@ def test_random_offset_gives_bias_ratio_zero():
 
 def test_offset_summary_empty():
     assert compare.offset_summary(compare.centroid_offsets(OV, empty()))["bias_ratio"] == 0.0
+
+
+def test_sam_area_uses_union_so_nested_segments_are_not_double_counted():
+    ov = gdf(box(0, 0, 10, 10))
+    segs = gdf(box(0, 0, 10, 10), box(0, 0, 5, 10))  # bidang atap bersarang di dalam atap utuh
+    s = compare.comparison_summary(ov, segs, compare.match(ov, segs))
+    assert s["luas_sam_m2"] == 100 and s["selisih_luas_pct"] == 0.0
