@@ -67,3 +67,16 @@ Dari segmen yang menempel >=50% pada denah Overture (354), 72% lolos; sisanya be
 
 - Pengguna menilai `output/map.html` (server lokal: `python -m http.server` di folder output) untuk 255 segmen hanya-SAM: apakah ambang `min_solidity` 0,75 dan `min_area_m2` 30 sudah wajar.
 - Setelah ambang final: catat alasan di README (Task 8), commit `config.yaml` bila berubah.
+
+## Temuan: mode dipandu cocok rendah dengan denah Overture
+
+Pada 117 denah, SAM dipandu kotak menghasilkan mask untuk semuanya, tetapi kesesuaiannya rendah:
+IoU terhadap denah kuantil 10/25/50/75/90 = 0,23 / 0,31 / 0,41 / 0,51 / 0,63.
+IoU >= 0,5: 33 denah (28%); >= 0,7: 7 (6%); >= 0,8: 2 (2%). Skor SAM median 0,873 (SAM yakin, tetapi mask berbeda dari denah).
+
+Penyebab yang mungkin (belum dibedakan, tidak ada data acuan):
+- Denah Overture bergeser (pergeseran pusat median 2,02 m, rata-rata dy -1,48 m).
+- SAM menangkap satu bidang atap limasan, bukan seluruh atap.
+- Denah Overture kurang presisi (satu denah menutup beberapa atap).
+
+Hasil dilaporkan sebagai kesesuaian antar-metode, bukan akurasi. Usulan: cek manual 20-30 bangunan untuk mendapat gambaran akurasi sungguhan (menunggu keputusan pengguna), lalu Task 8.
