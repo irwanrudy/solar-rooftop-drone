@@ -40,3 +40,30 @@ Irisan union SAM x union Overture: 41.244 m2.
 
 - `docs/index.html` berubah karena `publish_copy` aktif saat run; di-commit di Task 8 setelah hasil final.
 - `output/` di-ignore git; hasil run nyata bisa dibuat ulang.
+
+## Update: run 2 (setelah perbaikan, `min_area_m2` 30, cache `--reuse`)
+
+Tiga usulan dikerjakan (commit `40067df`): luas SAM memakai luas gabungan, `min_area_m2` 30, cache segmen mentah + `--reuse`.
+Run penuh 891 dtk; `--reuse` 44 dtk dengan hasil identik.
+
+| Item | Run 1 | Run 2 |
+|---|---|---|
+| Segmen mentah, luas, bentuk, kecerahan, vegetasi | 2093, 1826, 1765, 1765, 696 | 2093, 1374, 1327, 1327, 510 |
+| Cocok / kurang cocok / hanya Overture | 27 / 35 / 55 | 24 / 31 / 62 |
+| Hanya SAM | 380 | 255 |
+| Median IoU | 0,585 | 0,598 |
+| Luas SAM (gabungan) vs Overture | 147.952 (jumlah, menyesatkan) vs 56.330 m2 | 67.950 vs 56.330 m2 (+20,6%) |
+
+Pergeseran pusat (2,02 m median, `bias_ratio` 0,398) dan 117 denah mode dipandu tidak berubah.
+
+### Sensitivitas `max_exg` (uji offline pada cache)
+
+ExG kandidat berdistribusi dua kelompok: atap sekitar 0 atau di bawahnya, vegetasi 0,25-0,37.
+Menaikkan `max_exg` dari 0,05 ke 0,15 hanya menambah 9 segmen terkait denah dan 31 segmen tanpa denah (dari 354 dan 973).
+Kesimpulan: 0,05 tetap, hasilnya tidak sensitif terhadap ambang ini.
+Dari segmen yang menempel >=50% pada denah Overture (354), 72% lolos; sisanya berwarna hijau (kemungkinan tajuk pohon di atas denah).
+
+## Sisa pekerjaan Task 7
+
+- Pengguna menilai `output/map.html` (server lokal: `python -m http.server` di folder output) untuk 255 segmen hanya-SAM: apakah ambang `min_solidity` 0,75 dan `min_area_m2` 30 sudah wajar.
+- Setelah ambang final: catat alasan di README (Task 8), commit `config.yaml` bila berubah.
