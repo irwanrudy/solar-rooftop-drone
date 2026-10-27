@@ -14,11 +14,11 @@ Tidak perlu instal apa pun, bisa dibuka di HP maupun laptop.
 
 **Cara membaca peta:**
 - Foto berwarna adalah foto udara dari drone. Di sekelilingnya adalah peta jalan biasa.
-- **Kotak merah** adalah denah bangunan. Arahkan kursor (atau ketuk di HP) ke sebuah bangunan untuk melihat luas denahnya dalam meter persegi.
+- **Kotak merah** adalah denah bangunan. Arahkan kursor (atau ketuk di HP) ke sebuah bangunan untuk melihat luas denah, luas efektif, perkiraan kapasitas (kWp), dan energi per tahun (kWh) pada skenario dasar.
 - **Garis biru** adalah batas area yang dipelajari.
 - Tombol di pojok kanan atas bisa menyalakan atau mematikan setiap lapisan.
 
-Peta ini menunjukkan *seberapa luas* bangunan di area tersebut, bukan *berapa banyak listrik* yang bisa dihasilkan. Baca [disclaimer](#disclaimer-baca-ini-dulu) di bawah sebelum menarik kesimpulan.
+Angka kapasitas dan energi di peta adalah *perkiraan kasar* dari luas denah dan asumsi literatur (skenario dasar), bukan hasil desain atau pengukuran. Rentang skenario rendah sampai tinggi bisa berselisih sekitar 10 kali lipat. Baca [disclaimer](#disclaimer-baca-ini-dulu) di bawah sebelum menarik kesimpulan.
 
 ---
 
@@ -136,8 +136,9 @@ Hasil ada di folder `output/`:
 
 | File | Isi |
 |---|---|
-| `buildings.geojson` | Denah bangunan hasil clip, lengkap dengan `area_m2` |
+| `buildings.geojson` | Denah bangunan hasil clip, lengkap dengan `area_m2`, serta `eff_area_m2`, `kwp`, `kwh_year` (skenario dasar) jika `solar.enabled` |
 | `buildings_summary.csv` | Jumlah bangunan, total luas, min/median/max |
+| `solar_scenarios.csv` | Total luas efektif, kapasitas, energi, dan yield per skenario (jika `solar.enabled`) |
 | `map.html` | Peta interaktif, bisa dibuka langsung di browser |
 | `docs/index.html` | Salinan `map.html` yang dipublikasikan lewat GitHub Pages (diatur oleh `output.publish_copy`) |
 
