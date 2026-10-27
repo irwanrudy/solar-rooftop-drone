@@ -1,11 +1,13 @@
 """Ekstraksi building footprints Overture Maps untuk extent sebuah ortofoto.
 
-Alur (v0.1):
+Alur (v0.2):
     1. Baca ortofoto GeoTIFF -> CRS, resolusi, extent.
-    2. Unduh footprints Overture untuk extent tersebut.
-    3. Clip ke extent, reproject ke UTM, hitung luas (m2).
-    4. Simpan GeoJSON + ringkasan CSV.
-    5. Buat peta Folium (footprint di atas ortofoto).
+    2. Tentukan area analisis: AOI, atau area data valid ortofoto.
+    3. Unduh footprints Overture untuk area tersebut.
+    4. Clip ke area analisis, reproject ke UTM, hitung luas (m2).
+    5. Estimasi kWp dan kWh/tahun per skenario (src/solar.py), jika diaktifkan.
+    6. Simpan GeoJSON + ringkasan CSV + CSV skenario energi.
+    7. Buat peta Folium (footprint di atas ortofoto).
 
 Jalankan dari root project:  python src/footprints.py
 Semua path/parameter dibaca dari config.yaml.
@@ -277,7 +279,7 @@ MAP_NOTE_HTML = """
             background:rgba(255,255,255,.92);padding:8px 10px;border-radius:6px;
             font:12px/1.4 system-ui,sans-serif;color:#222;box-shadow:0 1px 5px rgba(0,0,0,.4)">
   <b>Cara membaca:</b> kotak merah = denah bangunan, garis biru = batas area studi.
-  Arahkan kursor ke bangunan untuk melihat luas denahnya.<br>
+  Arahkan kursor ke bangunan untuk melihat luas denah, kapasitas (kWp), dan energi per tahun (kWh).<br>
   <b>Screening awal</b>, bukan desain teknis: luas denah belum berarti luas atap yang bisa dipasangi panel.
   Angka kapasitas dan energi memakai skenario dasar (rentang rendah-tinggi ada di README) dan
   tidak memodelkan kemiringan, arah, atau bayangan atap.<br>
@@ -392,7 +394,10 @@ def main() -> None:
     solar_cfg = cfg.get("solar", {})
     if solar_cfg.get("enabled"):
         scenarios = solar.scenarios_from_config(solar_cfg)
-        base = next(s for s in scenarios if s.name == solar_cfg["base_scenario"])
+        base = next((s for s in scenarios if s.name == solar_cfg["base_scenario"]), None)
+        if base is None:
+            sys.exit(f"solar.base_scenario '{solar_cfg['base_scenario']}' tidak ada di solar.scenarios "
+                     f"(tersedia: {', '.join(s.name for s in scenarios)})")
         ghi = solar_cfg["annual_ghi_kwh_m2"]
         buildings = solar.add_estimates(buildings, base, ghi)
         scenario_df = solar.scenario_table(buildings["area_m2"], scenarios, ghi)
